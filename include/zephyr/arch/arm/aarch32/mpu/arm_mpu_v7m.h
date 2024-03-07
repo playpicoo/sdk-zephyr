@@ -134,6 +134,11 @@
 	(NORMAL_OUTER_INNER_WRITE_THROUGH_NON_SHAREABLE | size | RO_Msk) \
 }
 #endif
+#define REGION_RAM_EXECUTABLE_ATTR(size) \
+{ \
+	(NORMAL_OUTER_INNER_WRITE_THROUGH_NON_SHAREABLE | size | \
+		P_RW_U_RO_Msk) \
+}
 #define REGION_PPB_ATTR(size) { (STRONGLY_ORDERED_SHAREABLE | size | \
 		P_RW_U_NA_Msk) }
 #define REGION_IO_ATTR(size) { (DEVICE_NON_SHAREABLE | size | P_RW_U_NA_Msk) }

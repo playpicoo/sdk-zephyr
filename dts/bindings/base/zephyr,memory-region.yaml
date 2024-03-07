@@ -22,6 +22,7 @@ properties:
     enum:
       - "RAM"
       - "RAM_NOCACHE"
+      - "RAM_EXECUTABLE"
       - "FLASH"
       - "PPB"
       - "IO"
