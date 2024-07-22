@@ -191,6 +191,8 @@ static void fs_mgmt_upload_download_finish_check(void)
 {
 	if (fs_mgmt_ctxt.len > 0 && fs_mgmt_ctxt.off >= fs_mgmt_ctxt.len) {
 		/* File upload/download has finished, clean up */
+        LOG_INF("Finished file: %s, Offset: %llu", fs_mgmt_ctxt.path, fs_mgmt_ctxt.off);
+
 		k_work_cancel_delayable(&fs_mgmt_ctxt.file_close_work);
 		fs_mgmt_cleanup();
 	} else {
@@ -367,6 +369,8 @@ static int fs_mgmt_file_upload(struct smp_streamer *ctxt)
 
 	memcpy(file_name, name.value, name.len);
 	file_name[name.len] = '\0';
+
+    LOG_INF("Uploading file: %s, Offset: %llu", file_name, off);
 
 #if defined(CONFIG_MCUMGR_GRP_FS_FILE_ACCESS_HOOK)
 	/* Send request to application to check if access should be allowed or not */
