@@ -191,7 +191,7 @@ static void fs_mgmt_upload_download_finish_check(void)
 {
 	if (fs_mgmt_ctxt.len > 0 && fs_mgmt_ctxt.off >= fs_mgmt_ctxt.len) {
 		/* File upload/download has finished, clean up */
-        LOG_INF("Finished file: %s, Offset: %llu", fs_mgmt_ctxt.path, fs_mgmt_ctxt.off);
+        LOG_INF("Finished file: %s, Offset: %lu", fs_mgmt_ctxt.path, fs_mgmt_ctxt.off);
 
 		k_work_cancel_delayable(&fs_mgmt_ctxt.file_close_work);
 		fs_mgmt_cleanup();
@@ -518,6 +518,8 @@ static int fs_mgmt_file_upload(struct smp_streamer *ctxt)
 			fs_mgmt_cleanup();
 			goto end;
 		}
+
+        LOG_INF("Added len data: file: %s, Offset: %lu", file_name, file_data.len);
 
 		fs_mgmt_ctxt.off += file_data.len;
 	}
