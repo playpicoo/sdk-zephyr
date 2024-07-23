@@ -18,6 +18,10 @@
 #include <zcbor_common.h>
 #include <zcbor_decode.h>
 #include <zcbor_encode.h>
+#include <zephyr/logging/log.h>
+
+
+LOG_MODULE_REGISTER(mcumgr_smp, LOG_LEVEL_INF);
 
 #include <mgmt/mcumgr/transport/smp_internal.h>
 
@@ -332,6 +336,8 @@ int smp_process_request_packet(struct smp_streamer *streamer, void *vreq)
 		if (rc != 0) {
 			break;
 		}
+
+        LOG_HEXDUMP_INF(rsp, CONFIG_MCUMGR_TRANSPORT_NETBUF_SIZE, "D: ");
 
 		/* Send the response. */
 		rc = streamer->smpt->output(rsp);
