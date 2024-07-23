@@ -21,7 +21,7 @@
 #include <zephyr/logging/log.h>
 
 
-LOG_MODULE_REGISTER(mcumgr_smp, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mcumgr_smp_base, LOG_LEVEL_INF);
 
 #include <mgmt/mcumgr/transport/smp_internal.h>
 
