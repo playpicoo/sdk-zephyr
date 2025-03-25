@@ -130,6 +130,11 @@ static int mpu_configure_regions_from_dt(uint8_t *reg_index)
 			region_conf = _BUILD_REGION_CONF(region[idx], REGION_EXTMEM_ATTR);
 			break;
 #endif
+#ifdef REGION_RAM_EXECUTABLE_ATTR
+case DT_MEM_ARM_MPU_RAM_EXECUTABLE:
+    region_conf = _BUILD_REGION_CONF(region[idx], REGION_RAM_EXECUTABLE_ATTR);
+break;
+#endif
 		default:
 			/* Attribute other than ARM-specific is set.
 			 * This region should not be configured in MPU.
