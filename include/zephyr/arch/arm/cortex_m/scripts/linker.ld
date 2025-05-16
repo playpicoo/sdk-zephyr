@@ -198,9 +198,17 @@ SECTIONS
 
 #ifdef CONFIG_CODE_DATA_RELOCATION
 
+
 #include <linker_relocate.ld>
 
 #endif /* CONFIG_CODE_DATA_RELOCATION */
+
+/*
+ * For Picoo we want to add a custom section at the beginning of the firmware. 
+ * This way the symbols in this section are never moved if the firmware changes.  
+ * These symbols can then be linked to the games. Making the ABI stable.
+ */
+#include <picoo/abi_section.ld>
 
     SECTION_PROLOGUE(_TEXT_SECTION_NAME,,)
 	{
