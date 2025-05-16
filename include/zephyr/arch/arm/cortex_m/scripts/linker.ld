@@ -197,6 +197,13 @@ SECTIONS
 
 #endif /* CONFIG_CODE_DATA_RELOCATION */
 
+/*
+ * For Picoo we want to add a custom section at the beginning of the firmware.
+ * This way the symbols in this section are never moved if the firmware changes.
+ * These symbols can then be linked to the games, making the ABI stable.
+ */
+#include <picoo/abi_section.ld>
+
 #if DT_NODE_HAS_STATUS(DT_CHOSEN(zephyr_itcm), okay)
 GROUP_START(ITCM)
 
