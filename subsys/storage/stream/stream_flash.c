@@ -8,7 +8,7 @@
 #define LOG_MODULE_NAME STREAM_FLASH
 #define LOG_LEVEL CONFIG_STREAM_FLASH_LOG_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_STREAM_FLASH_LOG_LEVEL);
+LOG_MODULE_REGISTER(LOG_MODULE_NAME, 4);
 
 #include <zephyr/types.h>
 #include <string.h>
@@ -116,6 +116,9 @@ int stream_flash_erase_page(struct stream_flash_ctx *ctx, off_t off)
 
 #endif /* CONFIG_STREAM_FLASH_ERASE */
 
+uint32_t flash_write_time_total = 0;
+uint32_t erase_time_total = 0;
+
 static int flash_sync(struct stream_flash_ctx *ctx)
 {
 	int rc = 0;
@@ -128,6 +131,8 @@ static int flash_sync(struct stream_flash_ctx *ctx)
 	if (ctx->buf_bytes == 0) {
 		return 0;
 	}
+	
+	uint32_t erase_start_time = arch_k_cycle_get_32();
 
 	if (IS_ENABLED(CONFIG_STREAM_FLASH_ERASE)) {
 
@@ -140,6 +145,10 @@ static int flash_sync(struct stream_flash_ctx *ctx)
 		}
 	}
 
+	uint32_t difference = k_cyc_to_us_floor32(arch_k_cycle_get_32() - erase_start_time);
+	erase_time_total += difference;
+	LOG_INF("flash_erase time: %u us, total = %u us", difference, erase_time_total);
+
 	fill_length = ctx->write_block_size;
 	if (ctx->buf_bytes % fill_length) {
 		fill_length -= ctx->buf_bytes % fill_length;
@@ -151,7 +160,14 @@ static int flash_sync(struct stream_flash_ctx *ctx)
 	}
 
 	buf_bytes_aligned = ctx->buf_bytes + fill_length;
+
+	uint32_t write_start_time = arch_k_cycle_get_32();
+
 	rc = flash_write(ctx->fdev, write_addr, ctx->buf, buf_bytes_aligned);
+	
+	difference = k_cyc_to_us_floor32(arch_k_cycle_get_32() - write_start_time);
+	flash_write_time_total += difference;
+	LOG_INF("flash_write at %08lx, length %08lx time: %u us, total = %u us", (long)write_addr, (long)buf_bytes_aligned, difference, flash_write_time_total);
 
 	if (rc != 0) {
 		LOG_ERR("flash_write error %d offset=0x%08zx", rc,

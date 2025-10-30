@@ -36,6 +36,7 @@
 #include "lll/lll_vendor.h"
 
 #include "ll_sw/ull_tx_queue.h"
+#include "metrics/throughput.h"
 
 #include "isoal.h"
 #include "ull_iso_types.h"
@@ -68,7 +69,8 @@
 
 #include "hal/debug.h"
 
-#define LOG_LEVEL CONFIG_BT_HCI_DRIVER_LOG_LEVEL
+#define LOG_LEVEL 3
+//CONFIG_BT_HCI_DRIVER_LOG_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(bt_ctlr_ull_conn);
 
@@ -891,6 +893,9 @@ void ull_conn_rx(memq_link_t *link, struct node_rx_pdu **rx)
 #endif /* CONFIG_BT_CTLR_LE_ENC */
 		break;
 
+		/* Count RX bytes for throughput measurement */
+		bt_throughput_rx_add(pdu_rx->len);
+
 	case PDU_DATA_LLID_RESV:
 	default:
 #if defined(CONFIG_BT_CTLR_LE_ENC)
@@ -1577,6 +1582,10 @@ static int init_reset(void)
 		  LLCP_TX_CTRL_BUF_COUNT),
 		 &mem_link_tx.free);
 
+	/* Initialize throughput metrics */
+	LOG_INFO("BT Throughput Measurement Enabled");
+	bt_throughput_init();
+
 	/* Initialize control procedure system. */
 	ull_cp_init();
 
@@ -1606,6 +1615,7 @@ static int init_reset(void)
 	default_phy_rx |= PHY_CODED;
 #endif /* CONFIG_BT_CTLR_PHY_CODED */
 #endif /* CONFIG_BT_CTLR_PHY */
+
 
 	return 0;
 }

@@ -7,6 +7,7 @@
 #include <zephyr/sys/slist.h>
 
 #include "ull_tx_queue.h"
+#include "metrics/throughput.h"
 
 void ull_tx_q_init(struct ull_tx_q *queue)
 {
@@ -43,6 +44,16 @@ void ull_tx_q_enqueue_data(struct ull_tx_q *queue, struct node_tx *tx)
 		/* enqueue data pdu into tx list */
 		list = &queue->tx_list;
 	}
+
+	/* Count TX bytes: node_tx->pdu contains pdu_data with len field */
+	if (tx) {
+		struct pdu_data *p = (void *)tx->pdu;
+		if (p) {
+			/* include header + payload bytes as reported by len */
+			bt_throughput_tx_add(p->len);
+		}
+	}
+
 
 	sys_slist_append(list, (sys_snode_t *)tx);
 }

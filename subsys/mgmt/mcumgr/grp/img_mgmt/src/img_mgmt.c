@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
+#include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 #include <limits.h>
 #include <assert.h>
@@ -91,9 +93,16 @@ BUILD_ASSERT(sizeof(struct image_header) == IMAGE_HEADER_SIZE,
 #define ACTIVE_IMAGE_IS 0
 #endif
 
-LOG_MODULE_REGISTER(mcumgr_img_grp, CONFIG_MCUMGR_GRP_IMG_LOG_LEVEL);
+LOG_MODULE_REGISTER(mcumgr_img_grp, 4); //changed to magic number, change back to : CONFIG_MCUMGR_GRP_IMG_LOG_LEVEL
 
 struct img_mgmt_state g_img_mgmt_state;
+
+static uint32_t total_write_time = 0;
+
+static uint32_t erase_time_total = 0;
+
+static uint32_t upload_good_rsp_total = 0;
+
 
 #ifdef CONFIG_MCUMGR_GRP_IMG_MUTEX
 static K_MUTEX_DEFINE(img_mgmt_mutex);
@@ -187,6 +196,7 @@ int img_mgmt_active_image(void)
 int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash,
 				   uint32_t *flags)
 {
+	LOG_INF("Reading image info from slot %d", image_slot);
 	struct image_header hdr;
 	struct image_tlv tlv;
 	size_t data_off;
@@ -347,6 +357,8 @@ static void img_mgmt_reset_upload(void)
 static int
 img_mgmt_erase(struct smp_streamer *ctxt)
 {
+	LOG_INF("running img_mgmt_erase()");
+	uint32_t erase_time_start = k_cycle_get_32();
 	struct image_version ver;
 	int rc;
 	zcbor_state_t *zse = ctxt->writer->zs;
@@ -354,6 +366,7 @@ img_mgmt_erase(struct smp_streamer *ctxt)
 	bool ok;
 	uint32_t slot = img_mgmt_get_opposite_slot(img_mgmt_active_slot(img_mgmt_active_image()));
 	size_t decoded = 0;
+	uint32_t start_time;
 
 	struct zcbor_map_decode_key_val image_erase_decode[] = {
 		ZCBOR_MAP_DECODE_KEY_DECODER("slot", zcbor_uint32_decode, &slot),
@@ -366,6 +379,7 @@ img_mgmt_erase(struct smp_streamer *ctxt)
 		return MGMT_ERR_EINVAL;
 	}
 
+	start_time = k_cycle_get_32();
 	img_mgmt_take_lock();
 
 	/*
@@ -399,6 +413,8 @@ img_mgmt_erase(struct smp_streamer *ctxt)
 		goto end;
 	}
 
+	LOG_INF("Image erase took %u ms", k_cycle_get_32() - start_time);
+
 	if (IS_ENABLED(CONFIG_MCUMGR_SMP_LEGACY_RC_BEHAVIOUR)) {
 		if (!zcbor_tstr_put_lit(zse, "rc") || !zcbor_int32_put(zse, 0)) {
 			img_mgmt_release_lock();
@@ -409,12 +425,17 @@ img_mgmt_erase(struct smp_streamer *ctxt)
 end:
 	img_mgmt_release_lock();
 
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - erase_time_start);
+	erase_time_total += difference;
+	LOG_INF("Total image erase time: %u us, current: %u us", erase_time_total, difference);
 	return MGMT_ERR_EOK;
 }
 
 static int
 img_mgmt_upload_good_rsp(struct smp_streamer *ctxt)
 {
+	LOG_INF("running img_mgmt_upload_good_rsp()");
+	uint32_t upload_good_rsp_start = k_cycle_get_32();
 	zcbor_state_t *zse = ctxt->writer->zs;
 	bool ok = true;
 
@@ -425,6 +446,10 @@ img_mgmt_upload_good_rsp(struct smp_streamer *ctxt)
 
 	ok = ok && zcbor_tstr_put_lit(zse, "off")		&&
 		   zcbor_size_put(zse, g_img_mgmt_state.off);
+
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - upload_good_rsp_start);
+	upload_good_rsp_total += difference;
+	LOG_INF("Image upload good rsp took %u us, current = %u us", upload_good_rsp_total, difference);
 
 	return ok ? MGMT_ERR_EOK : MGMT_ERR_EMSGSIZE;
 }
@@ -464,6 +489,7 @@ img_mgmt_upload_log(bool is_first, bool is_last, int status)
 static int
 img_mgmt_upload(struct smp_streamer *ctxt)
 {
+	LOG_INF("running img_mgmt_upload()");
 	zcbor_state_t *zse = ctxt->writer->zs;
 	zcbor_state_t *zsd = ctxt->reader->zs;
 	bool ok;
@@ -641,6 +667,7 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 		/* erase the entire req.size all at once */
 		if (action.erase) {
 			rc = img_mgmt_erase_image_data(0, req.size);
+
 			if (rc != 0) {
 				IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(&action,
 					img_mgmt_err_str_flash_erase_failed);
@@ -662,8 +689,12 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 			last = true;
 		}
 
+		uint32_t write_start_time = k_cycle_get_32();
+
 		rc = img_mgmt_write_image_data(req.off, req.img_data.value, action.write_bytes,
 						    last);
+		total_write_time += k_cyc_to_us_floor32(k_cycle_get_32() - write_start_time);
+
 		if (rc == 0) {
 			g_img_mgmt_state.off += action.write_bytes;
 		} else {
@@ -681,6 +712,11 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 			LOG_ERR("Irrecoverable error: flash write failed: %d", rc);
 
 			ok = smp_add_cmd_err(zse, MGMT_GROUP_ID_IMAGE, rc);
+
+			uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - write_start_time);
+			total_write_time += difference;
+			LOG_INF("Total image write time: %u us, current = %u us", total_write_time, difference);
+
 			goto end;
 		}
 

@@ -33,6 +33,12 @@ LOG_MODULE_DECLARE(mcumgr_img_grp, CONFIG_MCUMGR_GRP_IMG_LOG_LEVEL);
 #define SLOT4_PARTITION		slot4_partition
 #define SLOT5_PARTITION		slot5_partition
 
+	uint32_t upload_time_total = 0;
+	uint32_t write_time_total = 0;
+	uint32_t upload_inspect_time_total = 0;
+	uint32_t read_time_total = 0;
+	uint32_t erased_val_time_total = 0;
+
 /* SLOT0_PARTITION and SLOT1_PARTITION are not checked because
  * there is not conditional code that depends on them. If they do
  * not exist compilation will fail, but in case if some of other
@@ -60,6 +66,7 @@ BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT4_PARTITION) &&
  */
 static int img_mgmt_flash_check_empty_inner(const struct flash_area *fa)
 {
+	LOG_INF("running img_mgmt_flash_check_empty_inner()");
 	uint32_t data[16];
 	off_t addr;
 	off_t end;
@@ -276,6 +283,7 @@ int img_mgmt_vercmp(const struct image_version *a, const struct image_version *b
 
 int img_mgmt_erase_slot(int slot)
 {
+	LOG_INF("running img_mgmt_erase_slot()");
 	const struct flash_area *fa;
 	int rc;
 	int area_id = img_mgmt_flash_area_id(slot);
@@ -314,6 +322,7 @@ int img_mgmt_erase_slot(int slot)
 
 int img_mgmt_write_pending(int slot, bool permanent)
 {
+	LOG_INF("running img_mgmt_write_pending()");
 	int rc;
 
 	if (slot != 1 && !(CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER == 2 && slot == 3)) {
@@ -344,6 +353,9 @@ int img_mgmt_write_confirmed(void)
 
 int img_mgmt_read(int slot, unsigned int offset, void *dst, unsigned int num_bytes)
 {
+	LOG_INF("running img_mgmt_read()");
+	uint32_t read_time_start = k_cycle_get_32();
+
 	const struct flash_area *fa;
 	int rc;
 	int area_id = img_mgmt_flash_area_id(slot);
@@ -365,7 +377,9 @@ int img_mgmt_read(int slot, unsigned int offset, void *dst, unsigned int num_byt
 		LOG_ERR("Failed to read data from flash: %d", rc);
 		return IMG_MGMT_ERR_FLASH_READ_FAILED;
 	}
-
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - read_time_start);
+	read_time_total += difference;
+	LOG_INF("Total image read time: %u us, current:%u us", read_time_total, difference);
 	return 0;
 }
 
@@ -421,6 +435,8 @@ out:
 int img_mgmt_write_image_data(unsigned int offset, const void *data, unsigned int num_bytes,
 			      bool last)
 {
+	LOG_INF("running img_mgmt_write_image_data()");
+	uint32_t write_start_time = k_cycle_get_32();
 	static struct flash_img_context ctx;
 
 	if (offset == 0) {
@@ -432,6 +448,10 @@ int img_mgmt_write_image_data(unsigned int offset, const void *data, unsigned in
 	if (flash_img_buffered_write(&ctx, data, num_bytes, last) != 0) {
 		return IMG_MGMT_ERR_FLASH_WRITE_FAILED;
 	}
+	
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - write_start_time);
+	write_time_total += difference;
+	LOG_INF("Total image write time: %u us, current:%u us", write_time_total, difference);
 
 	return IMG_MGMT_ERR_OK;
 }
@@ -439,6 +459,8 @@ int img_mgmt_write_image_data(unsigned int offset, const void *data, unsigned in
 
 int img_mgmt_erase_image_data(unsigned int off, unsigned int num_bytes)
 {
+	LOG_INF("running img_mgmt_erase_image_data()");
+
 	const struct flash_area *fa;
 	int rc;
 
@@ -519,6 +541,7 @@ end:
 
 int img_mgmt_swap_type(int slot)
 {
+	LOG_INF("running img_mgmt_swap_type()");
 	int image = img_mgmt_slot_to_image(slot);
 
 	switch (mcuboot_swap_type_multi(image)) {
@@ -551,6 +574,8 @@ int img_mgmt_swap_type(int slot)
 int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 			    struct img_mgmt_upload_action *action)
 {
+	LOG_INF("running img_mgmt_upload_inspect()");
+	uint32_t upload_inspect_time_start = k_cycle_get_32();
 	const struct image_header *hdr;
 	struct image_version cur_ver;
 	int rc;
@@ -770,11 +795,16 @@ skip_size_check:
 	action->proceed = true;
 	IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, NULL);
 
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - upload_inspect_time_start);
+	upload_inspect_time_total += difference;
+	LOG_INF("upload_inspect_time_total= %d us, current: %d us", upload_inspect_time_total, difference);
 	return IMG_MGMT_ERR_OK;
 }
 
 int img_mgmt_erased_val(int slot, uint8_t *erased_val)
 {
+	LOG_INF("running img_mgmt_erased_val()");
+	uint32_t erased_val_time_start = k_cycle_get_32();
 	const struct flash_area *fa;
 	int rc;
 	int area_id = img_mgmt_flash_area_id(slot);
@@ -791,6 +821,10 @@ int img_mgmt_erased_val(int slot, uint8_t *erased_val)
 
 	*erased_val = flash_area_erased_val(fa);
 	flash_area_close(fa);
+
+	uint32_t difference = k_cyc_to_us_floor32(k_cycle_get_32() - erased_val_time_start);
+	erased_val_time_total += difference;
+	LOG_INF("erased_val_time_total= %d us, current: %d us", erased_val_time_total, difference);
 
 	return 0;
 }

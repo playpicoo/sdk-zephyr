@@ -21,6 +21,7 @@ zephyr_library_sources(
   ll_sw/ll_addr.c
   ll_sw/ull.c
   ll_sw/lll_common.c
+  metrics/throughput.c
   )
 
 zephyr_library_sources_ifdef(
