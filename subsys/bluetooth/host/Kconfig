@@ -947,7 +947,7 @@ config BT_BACKGROUND_SCAN_WINDOW
 
 config BT_HCI_ADV_REPORT_CHAN_IDX
 	bool "Channel index in scan receive information"
-	depends on BT_LL_SOFTDEVICE if HAS_BT_CTLR
+	depends on !HAS_BT_CTLR || BT_LL_SOFTDEVICE
 	help
 	  When enabled, the bt_le_scan_recv_info parameter in the scan callback
 	  will provide the channel index the advertising PDU was received on.
